@@ -1,1 +1,1 @@
-const int MAX_CHANNELS = 2;
+#define MAX_CHANNELS 2

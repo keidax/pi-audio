@@ -3,7 +3,7 @@ CFLAGS=-std=gnu99 -Wall -Wextra -I.
 
 LIBS=-lportaudio -lsndfile
 
-DEPS = pi-audio.h
+DEPS = pi-audio.h master.h
 M_OBJ = master.c
 C_OBJ = pi-client.c
 
