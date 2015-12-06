@@ -1,7 +1,7 @@
 CC=gcc
-CFLAGS=-I.
+CFLAGS=-ansi -Wall -Wextra -I.
 
-LIBS=-lportaudio
+LIBS=-lportaudio -lsndfile
 
 DEPS = test.h
 OBJ = test.o 
