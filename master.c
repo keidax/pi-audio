@@ -87,15 +87,17 @@ int main() {
 
     printf("Connected successfully!\n");
 
-    float buf[1024];
+    int FRAMES_TO_SEND = 512;
     sf_count_t frames_read;
     int bytes_per_frame = MAX_CHANNELS * sizeof(float);
     int bytes_to_send, bytes_sent;
+    float buf[FRAMES_TO_SEND * MAX_CHANNELS];
 
     while(1) {
-        frames_read = sf_readf_float(sample_file, buf, 256);
+        frames_read = sf_readf_float(sample_file, buf, FRAMES_TO_SEND);
         bytes_to_send = frames_read * bytes_per_frame;
         bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
+        printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
         void * start = buf;
         while(bytes_sent != bytes_to_send) {
             start += bytes_sent;
