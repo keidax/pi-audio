@@ -1,12 +1,23 @@
 #include <portaudio.h>
-#include <sndfile.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <string.h>
+#include <errno.h>
 
 const int MAX_CHANNELS = 2;
+const int BACKLOG = 5; // Do we need this?
 
-static SF_INFO info;
 static int num_out_channels, sample_rate;
-static SNDFILE * sample_file;
+
+typedef struct ourData {
+    int sock_fd; // The socket file descriptor to read from
+    long frame_length;
+} ourData;
+
+static ourData our_data;
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -21,18 +32,15 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     (void) inputBuffer;
     (void) timeInfo;
     (void) statusFlags;
-    (void) userData;
+    ourData * data = (ourData *) userData;
 
-    sf_count_t frames_read;
+    unsigned long bytes_read;
     /* Read audio data from file. libsndfile can convert between formats
      * on-the-fly, so we should always use floats.
      */
-    frames_read = sf_readf_float(sample_file,
-            (float *) outputBuffer,
-            (sf_count_t) framesPerBuffer);
-
+    bytes_read = recv(data->sock_fd, outputBuffer, framesPerBuffer * data->frame_length, 0);
     /* If we've read all the frames, then we can finish. */
-    if(frames_read < 0 || (unsigned long)frames_read < framesPerBuffer) {
+    if(bytes_read == 0 || bytes_read < framesPerBuffer * data->frame_length) {
         return paComplete;
     }
     return paContinue;
@@ -42,26 +50,37 @@ int main() {
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
 
-    /* Open a sound file. */
-    sample_file = sf_open("samples/deadmau5.wav", SFM_READ, &info);
-    if(sample_file == NULL) {
-        printf("Error opening sample file:\n");
-        printf("%s\n", sf_strerror(sample_file));
-        sf_close(sample_file);
+    struct addrinfo hints;
+    struct addrinfo * res;
+    bzero((char *) &hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    getaddrinfo(NULL, "10144", &hints, &res);
+
+    int sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if(bind(sockfd, res->ai_addr, res->ai_addrlen)) {
+        printf("Error binding to socket: %s\n", strerror(errno));
         return 1;
-    } else {
-        printf("Sample file opened successfully!\n");
     }
 
-    if(info.channels <= MAX_CHANNELS) {
-        num_out_channels = info.channels;
-    } else {
-        printf("File has %i channels but we can only handle up to %i channels!"
-                "\n", info.channels, MAX_CHANNELS);
-        sf_close(sample_file);
+    if(listen(sockfd, BACKLOG)) {
+        printf("Error listening on socket: %s\n", strerror(errno));
         return 1;
     }
-    sample_rate = info.samplerate;
+
+
+    printf("Listening on port %i\n", ntohs(((struct sockaddr_in *)res->ai_addr)->sin_port));
+
+    struct sockaddr_storage master_addr;
+    socklen_t addr_size;
+    addr_size = sizeof(master_addr);
+    int new_fd = accept(sockfd, (struct sockaddr *) &master_addr, &addr_size);
+    
+    our_data.sock_fd = new_fd;
+    our_data.frame_length = MAX_CHANNELS * sizeof(float);
+    printf("Frame length is %i bytes\n", our_data.frame_length);
 
 
     /* Initialize PortAudio */
@@ -73,12 +92,12 @@ int main() {
     /* Open an audio stream. */
     err = Pa_OpenDefaultStream( &stream,
                                 0,
-                                num_out_channels,
+                                MAX_CHANNELS,
                                 paFloat32,
-                                sample_rate,
+                                44100,
                                 paFramesPerBufferUnspecified,
                                 paTestCallback,
-                                NULL);
+                                &our_data);
     if(err != paNoError) goto error;
 
     /* Start the audio stream. */
@@ -105,10 +124,8 @@ int main() {
     if(err != paNoError) {
 error:
         printf("PortAudio error: %s\n", Pa_GetErrorText(err));
-        sf_close(sample_file);
         return 1;
     }
 
-    sf_close(sample_file);
     return 0;
 }

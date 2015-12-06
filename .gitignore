@@ -1,2 +1,3 @@
 *.o
-pi-audio
+pi-audio-client
+pi-audio-master
