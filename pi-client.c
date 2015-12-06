@@ -34,15 +34,24 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     (void) statusFlags;
     ourData * data = (ourData *) userData;
 
-    unsigned long bytes_read;
+    int bytes_read, bytes_to_read;
     /* Read audio data from file. libsndfile can convert between formats
      * on-the-fly, so we should always use floats.
      */
-    bytes_read = recv(data->sock_fd, outputBuffer, framesPerBuffer * data->frame_length, 0);
+    bytes_to_read = framesPerBuffer * data->frame_length;
+    bytes_read = recv(data->sock_fd, outputBuffer, bytes_to_read, 0);
+    printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
     /* If we've read all the frames, then we can finish. */
-    if(bytes_read == 0 || bytes_read < framesPerBuffer * data->frame_length) {
-        return paComplete;
+    while(bytes_read != bytes_to_read) {
+        if(bytes_read == 0 && bytes_to_read != 0) {
+            return paComplete;
+        } else if(bytes_read < bytes_to_read) {
+            bytes_to_read -= bytes_read;
+            bytes_read = recv(data->sock_fd, outputBuffer, bytes_to_read, 0);
+            printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
+        }
     }
+
     return paContinue;
 }
 
