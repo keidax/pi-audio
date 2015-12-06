@@ -7,7 +7,9 @@
 #include <string.h>
 #include <errno.h>
 
-const int MAX_CHANNELS = 2;
+#include "pi-audio.h"
+
+
 const int BACKLOG = 5; // Do we need this?
 
 static int num_out_channels, sample_rate;

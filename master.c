@@ -8,7 +8,7 @@
 #include <string.h>
 #include <errno.h>
 
-const int MAX_CHANNELS = 2;
+#include "pi-audio.h"
 
 static SF_INFO info;
 static int num_out_channels, sample_rate;
