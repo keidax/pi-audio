@@ -33,6 +33,7 @@ void * framesync_thread_init(void * userdata) {
     // Connect to master sync socket
     getaddrinfo(NULL, sync_port_str, &hints, &res);
     sync_sock_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    bind(sync_sock_fd, res->ai_addr, res->ai_addrlen);
 
     if(listen(sync_sock_fd, BACKLOG)) {
         printf("Error listening on port %s -- %s\n", sync_port_str,
@@ -42,6 +43,8 @@ void * framesync_thread_init(void * userdata) {
     addr_size = sizeof(master_addr);
     int new_fd = accept(sync_sock_fd, (struct sockaddr *) &master_addr,
             &addr_size);
+
+    printf("Framesync connection established!\n");
 
     int bytes_read = 0;
     while(1) {
