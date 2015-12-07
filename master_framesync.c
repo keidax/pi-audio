@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 #include "master.h"
 #include "pi_audio.h"
@@ -13,6 +14,13 @@
 static pthread_t framesync_thread;
 static int sync_sock_fds[MAX_CLIENTS];
 static struct addrinfo * client_ais[MAX_CLIENTS];
+
+static const struct timespec wait_time = {
+    .tv_nsec = 1000 * 1000 * 10, // 10 milliseconds
+    .tv_sec = 0
+};
+
+static struct timespec rem_time;
 
 /* How many frames of audio the master has played. */
 unsigned long master_frames_played = 0;
@@ -38,6 +46,8 @@ void * framesync_thread_init(void * userdata) {
             send(sync_sock_fds[i], (void *) &master_frames_played, 
                     sizeof(master_frames_played), 0);
         }
+        printf("Sent MFP = %i\n", master_frames_played);
+        nanosleep(&wait_time, &rem_time);
     }
     return NULL;
 }

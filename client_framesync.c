@@ -50,6 +50,7 @@ void * framesync_thread_init(void * userdata) {
         if(bytes_read == 0){
             break;
         }
+        printf("Read MFP as %i\n", master_frames_played);
         nanosleep(&wait_time, &rem_time);
     }
 
