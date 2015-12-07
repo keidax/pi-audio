@@ -31,28 +31,45 @@ unsigned long master_frames_played = 0;
 void * framesync_thread_init(void * userdata) {
     (void) userdata;
     // Connect to master sync socket
-    getaddrinfo(NULL, sync_port_str, &hints, &res);
-    sync_sock_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    bind(sync_sock_fd, res->ai_addr, res->ai_addrlen);
+    int status;
+    if((status = getaddrinfo(NULL, sync_port_str, &hints, &res))) {
+        printf("Error in getaddrinfo(): %s\n", gai_strerror(status));
+        exit(1);
+    }
+
+    if((sync_sock_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0) {
+        printf("Error getting socket: %s\n", strerror(errno));
+        exit(1);
+    }
+    if(bind(sync_sock_fd, res->ai_addr, res->ai_addrlen)) {
+        printf("Error binding to port %s -- %s\n", sync_port_str, strerror(errno));
+        exit(1);
+    }
 
     if(listen(sync_sock_fd, BACKLOG)) {
-        printf("Error listening on port %s -- %s\n", sync_port_str,
-                strerror(errno));
+        printf("Error listening on port %s -- %s\n", sync_port_str, strerror(errno));
+        exit(1);
     }
 
     addr_size = sizeof(master_addr);
-    int new_fd = accept(sync_sock_fd, (struct sockaddr *) &master_addr,
-            &addr_size);
+    int new_fd;
+    if((new_fd = accept(sync_sock_fd, (struct sockaddr *) &master_addr, &addr_size)) < 0) {
+        printf("Error accepting on port %s -- %s\n", sync_port_str, strerror(errno));
+        exit(1);
+    }
 
     printf("Framesync connection established!\n");
 
     int bytes_read = 0;
     while(1) {
-        bytes_read = recv(new_fd, (void *) &master_frames_played,
-                sizeof(master_frames_played), 0);
+        bytes_read = recv(new_fd, (void *) &master_frames_played,sizeof(master_frames_played), 0);
         if(bytes_read == 0){
             break;
+        } else if(bytes_read < 0) {
+            printf("Error receiving on port %s -- %s\n", sync_port_str, strerror(errno));
+            exit(1);
         }
+
         printf("Read MFP as %i\n", master_frames_played);
         nanosleep(&wait_time, &rem_time);
     }

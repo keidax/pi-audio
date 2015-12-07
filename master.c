@@ -41,7 +41,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 
     master_frames_played += frames_read;
 
-    printf("MFP: %li\n", master_frames_played);
+    //printf("MFP: %li\n", master_frames_played);
 
     /* If we've read all the frames, then we can finish. */
     if(frames_read < 0 || (unsigned long)frames_read < framesPerBuffer) {
@@ -144,7 +144,7 @@ int main() {
             break;
         bytes_to_send = frames_read * bytes_per_frame;
         bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
-        printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
+        //printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
         void * start = buf;
         while(bytes_sent != bytes_to_send) {
             start += bytes_sent;
