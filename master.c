@@ -51,6 +51,8 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 }
 
 void master_setup() {
+    num_clients = 1;
+    clients[0].ip_addr = "192.168.1.147";
 }
 
 int main() {
@@ -99,7 +101,7 @@ int main() {
     // Get address info for our Pi
     struct addrinfo * pi_ai;
 
-    getaddrinfo("192.168.1.147", stream_port_str, &hints, &pi_ai);
+    getaddrinfo(clients[0].ip_addr, stream_port_str, &hints, &pi_ai);
 
     int sockfd = socket(pi_ai->ai_family, pi_ai->ai_socktype, pi_ai->ai_protocol);
     if(connect(sockfd, pi_ai->ai_addr, pi_ai->ai_addrlen)) {
