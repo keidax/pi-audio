@@ -19,7 +19,7 @@ static struct sockaddr_storage master_addr;
 static socklen_t addr_size;
 
 static const struct timespec wait_time = {
-    .tv_nsec = 1000 * 1000 * 10, // 10 milliseconds
+    .tv_nsec = 1000 * 1000 * 10, // 20 milliseconds
     .tv_sec = 0
 };
 
@@ -65,10 +65,15 @@ void * framesync_thread_init(void * userdata) {
 
     int bytes_read = 0;
     while(1) {
-        bytes_read = recv(new_fd, (void *) &master_frames_played,sizeof(master_frames_played), 0);
+        bytes_read = recv(new_fd, (void *) &master_frames_played,sizeof(master_frames_played), MSG_DONTWAIT);
         if(bytes_read == 0){
-            break;
-        } else if(bytes_read < 0) {
+            exit(1);
+        }  else if(bytes_read < 0) {
+            if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Do nothing
+                nanosleep(&wait_time, &rem_time);
+                continue;
+            }
             printf("Error receiving on port %s -- %s\n", sync_port_str, strerror(errno));
             exit(1);
         }
