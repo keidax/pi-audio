@@ -7,10 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include "pi-audio.h"
-
-
-const int BACKLOG = 5; // Do we need this?
+#include "pi_audio.h"
 
 static int num_out_channels, sample_rate;
 

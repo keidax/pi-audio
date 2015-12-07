@@ -8,13 +8,13 @@
 #include <string.h>
 #include <errno.h>
 
-#include "pi-audio.h"
+#include "pi_audio.h"
 #include "master.h"
 
-static int num_out_channels, sample_rate;
-static SNDFILE * playback_file, * streaming_file;
+int num_out_channels, sample_rate;
+SNDFILE * playback_file, * streaming_file;
 
-static float buf[FRAMES_TO_SEND * MAX_CHANNELS];
+float buf[FRAMES_TO_SEND * MAX_CHANNELS];
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -39,6 +39,8 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
             (float *) outputBuffer,
             (sf_count_t) framesPerBuffer);
 
+    master_frames_played += frames_read;
+
     /* If we've read all the frames, then we can finish. */
     if(frames_read < 0 || (unsigned long)frames_read < framesPerBuffer) {
         return paComplete;
@@ -46,7 +48,14 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     return paContinue;
 }
 
+void master_setup() {
+}
+
 int main() {
+
+    common_setup();
+    master_setup();
+
     char * file_path = "samples/deadmau5.wav";
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
@@ -86,15 +95,9 @@ int main() {
 
 
     // Get address info for our Pi
-    struct addrinfo hints;
     struct addrinfo * pi_ai;
-    bzero((char *) &hints, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = 0;
-    hints.ai_flags = 0;
 
-    getaddrinfo("192.168.1.147", "10144", &hints, &pi_ai);
+    getaddrinfo("192.168.1.147", stream_port_str, &hints, &pi_ai);
 
     int sockfd = socket(pi_ai->ai_family, pi_ai->ai_socktype, pi_ai->ai_protocol);
     if(connect(sockfd, pi_ai->ai_addr, pi_ai->ai_addrlen)) {
