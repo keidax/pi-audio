@@ -60,7 +60,7 @@ void * framesync_thread_init(void * userdata) {
                 exit(1);
             }
         }
-        //printf("Sent MFP = %i\n", master_frames_played);
+        printf("Sent MFP = %i (%i bytes)\n", master_frames_played, bytes_sent);
         nanosleep(&wait_time, &rem_time);
     }
     return NULL;
