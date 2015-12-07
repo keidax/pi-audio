@@ -16,7 +16,7 @@ static int sync_sock_fds[MAX_CLIENTS];
 static struct addrinfo * client_ais[MAX_CLIENTS];
 
 static const struct timespec wait_time = {
-    .tv_nsec = 1000 * 1000 * 10, // 10 milliseconds
+    .tv_nsec = 1000 * 1000 * 40, // 10 milliseconds
     .tv_sec = 0
 };
 

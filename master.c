@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "pi_audio.h"
 #include "master.h"
@@ -15,6 +16,9 @@ int num_out_channels, sample_rate;
 SNDFILE * playback_file, * streaming_file;
 
 float buf[FRAMES_TO_SEND * MAX_CHANNELS];
+
+static pthread_t streaming_thread;
+int sockfd;
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -53,6 +57,33 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 void master_setup() {
     num_clients = 1;
     clients[0].ip_addr = "192.168.1.147";
+}
+
+void * streaming_thread_init(void * userdata) {
+    (void) userdata;
+
+    /* Set up streaming to client. */
+    sf_count_t frames_read;
+    int bytes_per_frame = MAX_CHANNELS * sizeof(float);
+    int bytes_to_send, bytes_sent;
+
+    /* Send audio over network to client. */
+    while(1) {
+        frames_read = sf_readf_float(streaming_file, buf, FRAMES_TO_SEND);
+        if(frames_read == 0)
+            break;
+        bytes_to_send = frames_read * bytes_per_frame;
+        bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
+        //printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
+        void * start = buf;
+        while(bytes_sent != bytes_to_send) {
+            start += bytes_sent;
+            bytes_to_send -= bytes_sent;
+            bytes_sent = send(sockfd, (void *) start, bytes_to_send, 0);
+        }
+    }
+    sf_close(streaming_file);
+    return NULL;
 }
 
 int main() {
@@ -103,7 +134,7 @@ int main() {
 
     getaddrinfo(clients[0].ip_addr, stream_port_str, &hints, &pi_ai);
 
-    int sockfd = socket(pi_ai->ai_family, pi_ai->ai_socktype, pi_ai->ai_protocol);
+    sockfd = socket(pi_ai->ai_family, pi_ai->ai_socktype, pi_ai->ai_protocol);
     if(connect(sockfd, pi_ai->ai_addr, pi_ai->ai_addrlen)) {
         printf("Error connecting to socket: %s\n", strerror(errno));
     }
@@ -111,6 +142,7 @@ int main() {
     printf("Connected successfully!\n");
 
     start_framesync_thread();
+    pthread_create(&streaming_thread, NULL, streaming_thread_init, NULL);
 
     /* Initialize PortAudio */
     PaError err;
@@ -133,28 +165,6 @@ int main() {
     err = Pa_StartStream(stream);
     if(err != paNoError) goto error;
 
-    /* Set up streaming to client. */
-
-    sf_count_t frames_read;
-    int bytes_per_frame = MAX_CHANNELS * sizeof(float);
-    int bytes_to_send, bytes_sent;
-
-    /* Send audio over network to client. */
-    while(1) {
-        frames_read = sf_readf_float(streaming_file, buf, FRAMES_TO_SEND);
-        if(frames_read == 0)
-            break;
-        bytes_to_send = frames_read * bytes_per_frame;
-        bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
-        //printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
-        void * start = buf;
-        while(bytes_sent != bytes_to_send) {
-            start += bytes_sent;
-            bytes_to_send -= bytes_sent;
-            bytes_sent = send(sockfd, (void *) start, bytes_to_send, 0);
-        }
-    }
-    sf_close(streaming_file);
 
     /* Sleep until stream finishes (when the callback outputs paComplete and all
      * buffers finish playing).
