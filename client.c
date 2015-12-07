@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include "pi_audio.h"
 #include "client.h"
@@ -52,7 +53,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
         }
     }
 
-    printf("MFP: %li\n", master_frames_played);
+    printf("MFP: %" PRIu32 "\n", master_frames_played);
 
     return paContinue;
 }

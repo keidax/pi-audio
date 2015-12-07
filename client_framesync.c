@@ -26,7 +26,7 @@ static const struct timespec wait_time = {
 static struct timespec rem_time;
 
 /* How many frames of audio the master has played. */
-unsigned long master_frames_played = 0;
+uint32_t master_frames_played = 0;
 
 void * framesync_thread_init(void * userdata) {
     (void) userdata;
