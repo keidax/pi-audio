@@ -73,7 +73,7 @@ void * framesync_thread_init(void * userdata) {
             exit(1);
         }
 
-        printf("Read MFP as %i (%i bytes)\n", master_frames_played, bytes_read);
+        //printf("Read MFP as %i (%i bytes)\n", master_frames_played, bytes_read);
         nanosleep(&wait_time, &rem_time);
     }
 

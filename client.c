@@ -47,7 +47,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
      */
     bytes_to_read = framesPerBuffer * data->frame_length;
     bytes_read = read(pipe_fd[0], outputBuffer, bytes_to_read);
-    //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
+    //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
     /* If we've read all the frames, then we can finish. */
     while(bytes_read != bytes_to_read) {
         if(bytes_read == 0 && bytes_to_read != 0) {
@@ -55,11 +55,11 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
         } else if(bytes_read < bytes_to_read) {
             bytes_to_read -= bytes_read;
             bytes_read = read(pipe_fd[0], outputBuffer, bytes_to_read);
-            //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
+            //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
         }
     }
 
-    printf("MFP: %" PRIu32 "\n", master_frames_played);
+    //printf("MFP: %" PRIu32 "\n", master_frames_played);
 
     return paContinue;
 }
@@ -75,10 +75,11 @@ void * buffer_thread_init(void * userdata) {
         // Receive from master over network
         bytes_to_read = buf_len;
         bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
+        //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
 
         while(bytes_read != bytes_to_read) {
             if(bytes_read == 0) {
-                break;
+                exit(1);
             } else if(bytes_read < bytes_to_read) {
                 bytes_to_read -= bytes_read;
                 bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
