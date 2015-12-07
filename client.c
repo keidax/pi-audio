@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #include "pi_audio.h"
+#include "client.h"
 
 static int num_out_channels, sample_rate;
 
@@ -51,6 +52,8 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
         }
     }
 
+    printf("MFP: %li\n", master_frames_played);
+
     return paContinue;
 }
 
@@ -58,12 +61,7 @@ int main() {
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
 
-    struct addrinfo hints;
     struct addrinfo * res;
-    bzero((char *) &hints, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
 
     getaddrinfo(NULL, "10144", &hints, &res);
 
@@ -90,6 +88,7 @@ int main() {
     our_data.frame_length = MAX_CHANNELS * sizeof(float);
     printf("Frame length is %i bytes\n", our_data.frame_length);
 
+    start_framesync_thread();
 
     /* Initialize PortAudio */
     PaError err;

@@ -41,6 +41,8 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 
     master_frames_played += frames_read;
 
+    printf("MFP: %li\n", master_frames_played);
+
     /* If we've read all the frames, then we can finish. */
     if(frames_read < 0 || (unsigned long)frames_read < framesPerBuffer) {
         return paComplete;
@@ -105,6 +107,8 @@ int main() {
     }
 
     printf("Connected successfully!\n");
+
+    start_framesync_thread();
 
     /* Initialize PortAudio */
     PaError err;

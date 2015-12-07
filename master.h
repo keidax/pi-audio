@@ -14,4 +14,6 @@ typedef struct client {
 int num_clients;
 client clients[MAX_CLIENTS];
 
+void start_framesync_thread();
+
 #endif // _PI_AUDIO_MASTER_H
