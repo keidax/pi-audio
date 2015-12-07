@@ -8,7 +8,7 @@ const struct addrinfo hints = {
     .ai_family = AF_INET,
     .ai_socktype = SOCK_STREAM,
     .ai_protocol = 0,
-    .ai_flags = 0,
+    .ai_flags = AI_PASSIVE,
     // The rest of these fields don't matter, should just be 0
     .ai_addrlen = 0,
     .ai_canonname = NULL,
