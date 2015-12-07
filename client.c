@@ -1,3 +1,5 @@
+#define _GNU_SOURCE // Needed for fcntl(2) F_SETPIPE_SZ
+
 #include <portaudio.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +11,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <fcntl.h>
 
 #include "pi_audio.h"
 #include "client.h"
@@ -25,6 +28,8 @@ static ourData our_data;
 static int pipe_fd[2];
 static pthread_t buffer_thread;
 
+uint32_t client_bytes_recvd = 0;
+uint32_t client_frames_played = 0;
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -59,7 +64,11 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
         }
     }
 
+    client_frames_played += framesPerBuffer;
+
     //printf("MFP: %" PRIu32 "\n", master_frames_played);
+    //printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
+    //printf("CFP: %" PRIu32 "\n", client_frames_played);
 
     return paContinue;
 }
@@ -69,13 +78,17 @@ void * buffer_thread_init(void * userdata) {
     int buf_len = 512 * our_data.frame_length;
     char buf[buf_len];
 
-    int bytes_to_read, bytes_read, bytes_to_write, bytes_written;
+    int bytes_to_read, bytes_read, bytes_read_total, bytes_to_write, bytes_written;
 
     while(1) {
+        bytes_read_total = 0;
         // Receive from master over network
         bytes_to_read = buf_len;
         bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
         //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
+
+        client_bytes_recvd += bytes_read;
+        bytes_read_total += bytes_read;
 
         while(bytes_read != bytes_to_read) {
             if(bytes_read == 0) {
@@ -84,16 +97,20 @@ void * buffer_thread_init(void * userdata) {
                 bytes_to_read -= bytes_read;
                 bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
                 //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
+                client_bytes_recvd += bytes_read;
+                bytes_read_total += bytes_read;
             }
         }
 
         // Write to pipe
-        bytes_to_write = bytes_read;
+        bytes_to_write = bytes_read_total;
         bytes_written = write(pipe_fd[1], buf, bytes_to_write);
         while(bytes_written != bytes_to_write) {
             bytes_to_write -= bytes_written;
             bytes_written = write(pipe_fd[1], buf, bytes_to_write);
         }
+
+        printf("Frames buffered: %i\n", (client_bytes_recvd / our_data.frame_length) - client_frames_played);
     }
 
     return NULL;
@@ -137,6 +154,7 @@ int main() {
 
     // Create a pipe to hold audio data
     pipe(pipe_fd);
+    fcntl(pipe_fd[0], F_SETPIPE_SZ, 1048576);
 
     int pthread_err;
     pthread_err = pthread_create(&buffer_thread, NULL, buffer_thread_init, NULL);
