@@ -7,6 +7,8 @@
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #include "pi_audio.h"
 #include "client.h"
@@ -19,6 +21,10 @@ typedef struct ourData {
 } ourData;
 
 static ourData our_data;
+
+static int pipe_fd[2];
+static pthread_t buffer_thread;
+
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -40,7 +46,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
      * on-the-fly, so we should always use floats.
      */
     bytes_to_read = framesPerBuffer * data->frame_length;
-    bytes_read = recv(data->sock_fd, outputBuffer, bytes_to_read, 0);
+    bytes_read = read(pipe_fd[0], outputBuffer, bytes_to_read);
     //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
     /* If we've read all the frames, then we can finish. */
     while(bytes_read != bytes_to_read) {
@@ -48,7 +54,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
             return paComplete;
         } else if(bytes_read < bytes_to_read) {
             bytes_to_read -= bytes_read;
-            bytes_read = recv(data->sock_fd, outputBuffer, bytes_to_read, 0);
+            bytes_read = read(pipe_fd[0], outputBuffer, bytes_to_read);
             //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
         }
     }
@@ -56,6 +62,40 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     printf("MFP: %" PRIu32 "\n", master_frames_played);
 
     return paContinue;
+}
+
+void * buffer_thread_init(void * userdata) {
+    (void) userdata;
+    int buf_len = 512 * our_data.frame_length;
+    char buf[buf_len];
+
+    int bytes_to_read, bytes_read, bytes_to_write, bytes_written;
+
+    while(1) {
+        // Receive from master over network
+        bytes_to_read = buf_len;
+        bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
+
+        while(bytes_read != bytes_to_read) {
+            if(bytes_read == 0) {
+                break;
+            } else if(bytes_read < bytes_to_read) {
+                bytes_to_read -= bytes_read;
+                bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
+                //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
+            }
+        }
+
+        // Write to pipe
+        bytes_to_write = bytes_read;
+        bytes_written = write(pipe_fd[1], buf, bytes_to_write);
+        while(bytes_written != bytes_to_write) {
+            bytes_to_write -= bytes_written;
+            bytes_written = write(pipe_fd[1], buf, bytes_to_write);
+        }
+    }
+
+    return NULL;
 }
 
 int main() {
@@ -93,6 +133,16 @@ int main() {
     our_data.sock_fd = new_fd;
     our_data.frame_length = MAX_CHANNELS * sizeof(float);
     printf("Frame length is %i bytes\n", our_data.frame_length);
+
+    // Create a pipe to hold audio data
+    pipe(pipe_fd);
+
+    int pthread_err;
+    pthread_err = pthread_create(&buffer_thread, NULL, buffer_thread_init, NULL);
+    if(pthread_err) {
+        printf("Error code returned from pthread_create(): %d\n", pthread_err);
+        exit(1);
+    }
 
     /* Initialize PortAudio */
     PaError err;
