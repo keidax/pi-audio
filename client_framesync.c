@@ -41,6 +41,7 @@ void * framesync_thread_init(void * userdata) {
         printf("Error getting socket: %s\n", strerror(errno));
         exit(1);
     }
+
     if(bind(sync_sock_fd, res->ai_addr, res->ai_addrlen)) {
         printf("Error binding to port %s -- %s\n", sync_port_str, strerror(errno));
         exit(1);
@@ -50,6 +51,8 @@ void * framesync_thread_init(void * userdata) {
         printf("Error listening on port %s -- %s\n", sync_port_str, strerror(errno));
         exit(1);
     }
+
+    printf("Framesync listening on port %s\n", sync_port_str);
 
     addr_size = sizeof(master_addr);
     int new_fd;

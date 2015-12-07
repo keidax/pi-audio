@@ -58,6 +58,9 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 }
 
 int main() {
+
+    common_setup();
+
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
 
@@ -79,6 +82,8 @@ int main() {
 
     printf("Listening on port %i\n", ntohs(((struct sockaddr_in *)res->ai_addr)->sin_port));
 
+    start_framesync_thread();
+
     struct sockaddr_storage master_addr;
     socklen_t addr_size;
     addr_size = sizeof(master_addr);
@@ -87,8 +92,6 @@ int main() {
     our_data.sock_fd = new_fd;
     our_data.frame_length = MAX_CHANNELS * sizeof(float);
     printf("Frame length is %i bytes\n", our_data.frame_length);
-
-    start_framesync_thread();
 
     /* Initialize PortAudio */
     PaError err;
