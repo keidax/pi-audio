@@ -69,9 +69,10 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     i++;
 
     if(i%50 == 0) {
-        printf("MFP: %" PRIu32 "\n", master_frames_played);
-        printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
-        printf("CFP: %" PRIu32 "\n", client_frames_played);
+        //printf("MFP: %" PRIu32 "\n", master_frames_played);
+        //printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
+        //printf("CFP: %" PRIu32 "\n", client_frames_played);
+        printf("Client/Master: %i%%\n", client_frames_played * 100 / master_frames_played);
     }
 
     return paContinue;
@@ -165,7 +166,7 @@ int main() {
     }
 
     our_data.sock_fd = new_fd;
-    our_data.frame_length = MAX_CHANNELS * sizeof(float);
+    our_data.frame_length = MAX_CHANNELS * sizeof(short);
     printf("Frame length is %i bytes\n", our_data.frame_length);
 
     // Create a pipe to hold audio data
@@ -189,7 +190,7 @@ int main() {
     err = Pa_OpenDefaultStream( &stream,
                                 0,
                                 MAX_CHANNELS,
-                                paFloat32,
+                                paInt16,
                                 44100,
                                 paFramesPerBufferUnspecified,
                                 paTestCallback,
