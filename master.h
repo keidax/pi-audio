@@ -2,7 +2,7 @@
 #define _PI_AUDIO_MASTER_H
 #include <netdb.h>
 
-#define FRAMES_TO_SEND 512
+#define FRAMES_TO_SEND 1024
 
 
 typedef struct client {

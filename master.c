@@ -5,9 +5,12 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 #include <string.h>
 #include <errno.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "pi_audio.h"
 #include "master.h"
@@ -15,10 +18,11 @@
 int num_out_channels, sample_rate;
 SNDFILE * playback_file, * streaming_file;
 
-float buf[FRAMES_TO_SEND * MAX_CHANNELS];
+short buf[FRAMES_TO_SEND * MAX_CHANNELS];
 
 static pthread_t streaming_thread;
 int sockfd;
+uint32_t total_bytes_sent;
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -56,30 +60,49 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 
 void master_setup() {
     num_clients = 1;
-    clients[0].ip_addr = "192.168.1.147";
+    clients[0].ip_addr = "192.168.1.148";
 }
 
 void * streaming_thread_init(void * userdata) {
     (void) userdata;
 
+    int opt_on = 0;
+
+    setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &opt_on, sizeof(int));
+
     /* Set up streaming to client. */
     sf_count_t frames_read;
-    int bytes_per_frame = MAX_CHANNELS * sizeof(float);
+    int bytes_per_frame = MAX_CHANNELS * sizeof(short);
     int bytes_to_send, bytes_sent;
+    int i = 0;
 
     /* Send audio over network to client. */
     while(1) {
-        frames_read = sf_readf_float(streaming_file, buf, FRAMES_TO_SEND);
+        frames_read = sf_readf_short(streaming_file, buf, FRAMES_TO_SEND);
         if(frames_read == 0)
             break;
         bytes_to_send = frames_read * bytes_per_frame;
         bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
-        //printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
         void * start = buf;
-        while(bytes_sent != bytes_to_send) {
-            start += bytes_sent;
-            bytes_to_send -= bytes_sent;
+        while(bytes_sent != 0) {
+            if(bytes_sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                //printf("%%");
+                int q;
+                for(q = 0; q < 100; q++) {
+                    // Burn cpu time
+                }
+            } else {
+                //printf("Sent %i/%i bytes to client\n", bytes_sent, bytes_to_send);
+                start += bytes_sent;
+                bytes_to_send -= bytes_sent;
+                total_bytes_sent += bytes_sent;
+            }
             bytes_sent = send(sockfd, (void *) start, bytes_to_send, 0);
+        }
+        i++;
+
+        if(i%20 == 0) {
+            printf("Total frames sent to client: %u\n", total_bytes_sent / bytes_per_frame);
         }
     }
     sf_close(streaming_file);
@@ -135,6 +158,7 @@ int main() {
     getaddrinfo(clients[0].ip_addr, stream_port_str, &hints, &pi_ai);
 
     sockfd = socket(pi_ai->ai_family, pi_ai->ai_socktype, pi_ai->ai_protocol);
+    fcntl(sockfd, F_SETFL, O_NONBLOCK);
     if(connect(sockfd, pi_ai->ai_addr, pi_ai->ai_addrlen)) {
         printf("Error connecting to socket: %s\n", strerror(errno));
     }
