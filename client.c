@@ -16,7 +16,7 @@
 #include "pi_audio.h"
 #include "client.h"
 
-static int num_out_channels, sample_rate;
+//static int num_out_channels, sample_rate;
 
 typedef struct ourData {
     int sock_fd; // The socket file descriptor to read from
@@ -167,7 +167,7 @@ int main() {
 
     our_data.sock_fd = new_fd;
     our_data.frame_length = MAX_CHANNELS * sizeof(short);
-    printf("Frame length is %i bytes\n", our_data.frame_length);
+    printf("Frame length is %li bytes\n", our_data.frame_length);
 
     // Create a pipe to hold audio data
     pipe(pipe_fd);
