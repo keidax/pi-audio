@@ -47,6 +47,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     ourData * data = (ourData *) userData;
 
     int bytes_read, bytes_to_read;
+    static int i = 0;
     /* Read audio data from file. libsndfile can convert between formats
      * on-the-fly, so we should always use floats.
      */
@@ -65,17 +66,20 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     }
 
     client_frames_played += framesPerBuffer;
+    i++;
 
-    //printf("MFP: %" PRIu32 "\n", master_frames_played);
-    //printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
-    //printf("CFP: %" PRIu32 "\n", client_frames_played);
+    if(i%50 == 0) {
+        printf("MFP: %" PRIu32 "\n", master_frames_played);
+        printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
+        printf("CFP: %" PRIu32 "\n", client_frames_played);
+    }
 
     return paContinue;
 }
 
 void * buffer_thread_init(void * userdata) {
     (void) userdata;
-    int buf_len = 512 * our_data.frame_length;
+    int buf_len = 1024 * our_data.frame_length;
     char buf[buf_len];
 
     int bytes_to_read, bytes_read, bytes_read_total, bytes_to_write, bytes_written;
@@ -85,21 +89,26 @@ void * buffer_thread_init(void * userdata) {
         // Receive from master over network
         bytes_to_read = buf_len;
         bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
-        //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
 
-        client_bytes_recvd += bytes_read;
-        bytes_read_total += bytes_read;
-
-        while(bytes_read != bytes_to_read) {
-            if(bytes_read == 0) {
-                exit(1);
-            } else if(bytes_read < bytes_to_read) {
-                bytes_to_read -= bytes_read;
-                bytes_read = recv(our_data.sock_fd, buf, bytes_to_read, 0);
+        void * start = buf;
+        while(bytes_read != 0) {
+            if(bytes_read < 0) {
+                if((errno == EAGAIN || errno == EWOULDBLOCK)) {
+                    int q;
+                    for(q = 0; q< 100; q++) {
+                        //burn cpu time
+                    }
+                } else {
+                    printf("Error receiving on socket: %s\n", strerror(errno));
+                }
+            } else {
                 //printf("Received %i/%i bytes from socket\n", bytes_read, bytes_to_read);
                 client_bytes_recvd += bytes_read;
                 bytes_read_total += bytes_read;
+                bytes_to_read -= bytes_read;
+                start += bytes_read;
             }
+            bytes_read = recv(our_data.sock_fd, start, bytes_to_read, 0);
         }
 
         // Write to pipe
@@ -109,8 +118,6 @@ void * buffer_thread_init(void * userdata) {
             bytes_to_write -= bytes_written;
             bytes_written = write(pipe_fd[1], buf, bytes_to_write);
         }
-
-        printf("Frames buffered: %i\n", (client_bytes_recvd / our_data.frame_length) - client_frames_played);
     }
 
     return NULL;
@@ -128,6 +135,7 @@ int main() {
     getaddrinfo(NULL, "10144", &hints, &res);
 
     int sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    fcntl(sockfd, F_SETFL, O_NONBLOCK);
     if(bind(sockfd, res->ai_addr, res->ai_addrlen)) {
         printf("Error binding to socket: %s\n", strerror(errno));
         return 1;
@@ -146,8 +154,16 @@ int main() {
     struct sockaddr_storage master_addr;
     socklen_t addr_size;
     addr_size = sizeof(master_addr);
-    int new_fd = accept(sockfd, (struct sockaddr *) &master_addr, &addr_size);
-    
+    int new_fd;
+    while((new_fd = accept(sockfd, (struct sockaddr *) &master_addr, &addr_size)) < 0) {
+        if(errno ==EAGAIN || errno == EWOULDBLOCK) {
+            sleep(1);
+        } else {
+            printf("Error accepting connection: %s\n", strerror(errno));
+            return 1;
+        }
+    }
+
     our_data.sock_fd = new_fd;
     our_data.frame_length = MAX_CHANNELS * sizeof(float);
     printf("Frame length is %i bytes\n", our_data.frame_length);
