@@ -19,7 +19,7 @@ static struct sockaddr_storage master_addr;
 static socklen_t addr_size;
 
 static const struct timespec wait_time = {
-    .tv_nsec = 1000 * 1000 * 20, // 20 milliseconds
+    .tv_nsec = 1000 * 1000 * 100, // 100 milliseconds
     .tv_sec = 0
 };
 

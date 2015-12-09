@@ -16,7 +16,7 @@ static int sync_sock_fds[MAX_CLIENTS];
 static struct addrinfo * client_ais[MAX_CLIENTS];
 
 static const struct timespec wait_time = {
-    .tv_nsec = 1000 * 1000 * 40, // 10 milliseconds
+    .tv_nsec = 1000 * 1000 * 100, // 100 milliseconds
     .tv_sec = 0
 };
 
@@ -60,7 +60,7 @@ void * framesync_thread_init(void * userdata) {
                 exit(1);
             }
         }
-        printf("Sent MFP = %i (%i bytes)\n", master_frames_played, bytes_sent);
+        //printf("Sent MFP = %i (%i bytes)\n", master_frames_played, bytes_sent);
         nanosleep(&wait_time, &rem_time);
     }
     return NULL;
