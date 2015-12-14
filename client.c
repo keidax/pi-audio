@@ -10,13 +10,10 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <fcntl.h>
 
 #include "pi_audio.h"
 #include "client.h"
-
-//static int num_out_channels, sample_rate;
 
 ourData our_data;
 
@@ -29,7 +26,7 @@ int main() {
 
     struct addrinfo * res;
 
-    getaddrinfo(NULL, "10144", &hints, &res);
+    getaddrinfo(NULL, stream_port_str, &hints, &res);
 
     int sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     fcntl(sockfd, F_SETFL, O_NONBLOCK);

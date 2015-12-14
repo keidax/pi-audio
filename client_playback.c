@@ -46,7 +46,8 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
         //printf("MFP: %" PRIu32 "\n", master_frames_played);
         //printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
         //printf("CFP: %" PRIu32 "\n", client_frames_played);
-        printf("Client/Master: %i%%\n", client_frames_played * 100 / master_frames_played);
+        printf("Client/Master: %i%%\t", client_frames_played * 100 / master_frames_played);
+        printf("Client buffer: %.3f secs\n", ((client_bytes_recvd / our_data.frame_length) - client_frames_played) / 44100.0);
     }
 
     return paContinue;
