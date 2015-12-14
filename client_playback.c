@@ -5,6 +5,12 @@
 #include "pi_audio.h"
 #include "client.h"
 
+// Allowable latency, in frames
+static int client_latency = 100;
+static int master_frame_correction = 4000;
+static const int skip_frames = 512;
+static short skip_buf[512 * MAX_CHANNELS];
+
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
  * that could mess up the system like calling malloc() or free().
@@ -23,6 +29,21 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
 
     sf_count_t frames_read;
     static int i = 0;
+
+    // Skip ahead if we're lagging too far behind the master
+    if(client_frames_played + framesPerBuffer + client_latency < master_frames_played + master_frame_correction) {
+        int frames_to_skip = (master_frames_played + master_frame_correction) -
+            (client_frames_played + framesPerBuffer + client_latency);
+        int frames_skipped;
+        client_frames_played += frames_to_skip;
+        printf("Skipping %i frames\n", frames_to_skip);
+        while(frames_to_skip > skip_frames) {
+            frames_skipped = sf_readf_short(decoded_file, skip_buf, skip_frames);
+            frames_to_skip -= frames_skipped;
+        }
+        sf_readf_short(decoded_file, skip_buf, frames_to_skip);
+    }
+
     /* Read audio data from file. */
     frames_read = sf_readf_short(decoded_file, outputBuffer, framesPerBuffer);
 
