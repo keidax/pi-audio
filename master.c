@@ -55,7 +55,10 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 
     master_frames_played += frames_read;
 
-    //printf("MFP: %li\n", master_frames_played);
+    static int i = 0;
+    i++;
+    if(i%10 == 0)
+        printf("MFP: %u\n", master_frames_played);
 
     /* If we've read all the frames, then we can finish. */
     if(frames_read < 0 || (unsigned long)frames_read < framesPerBuffer) {
@@ -147,7 +150,7 @@ int main() {
     common_setup();
     master_setup();
 
-    char * file_path = "samples/deadmau5.ogg";
+    char * file_path = "samples/james_blake.ogg";
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
 
