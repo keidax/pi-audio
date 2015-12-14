@@ -1,3 +1,5 @@
+#define _GNU_SOURCE // Needed for fcntl(2) F_SETPIPE_SZ
+
 #include <portaudio.h>
 #include <sndfile.h>
 #include <stdio.h>
@@ -16,11 +18,15 @@
 #include "master.h"
 
 int num_out_channels, sample_rate;
-SNDFILE * playback_file, * streaming_file;
+SNDFILE * playback_file, * streaming_file, * stream_out_file;
+SF_INFO playback_info, streaming_info, stream_out_info;
 
-short buf[FRAMES_TO_SEND * MAX_CHANNELS];
+int stream_pipe_fd[2];
 
-static pthread_t streaming_thread;
+char buf[BYTES_TO_SEND];
+short enc_buf[FRAMES_TO_ENCODE * MAX_CHANNELS];
+
+static pthread_t streaming_thread, encode_thread;
 int sockfd;
 uint32_t total_bytes_sent;
 
@@ -61,27 +67,55 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
 void master_setup() {
     num_clients = 1;
     clients[0].ip_addr = "192.168.1.148";
+    pipe(stream_pipe_fd);
+    fcntl(stream_pipe_fd[0], F_SETPIPE_SZ, 1048576);
 }
 
+void * encode_thread_init(void * userdata) {
+    (void) userdata;
+
+    stream_out_info.format = STREAM_FORMAT;
+    stream_out_info.channels = streaming_info.channels;
+    stream_out_info.samplerate = streaming_info.samplerate;
+
+    stream_out_file =sf_open_fd(stream_pipe_fd[1], SFM_WRITE, &stream_out_info, 0);
+
+    /* Set up streaming to client. */
+    sf_count_t frames_read, frames_written;
+
+    /* Send audio over network to client. */
+    while(1) {
+        frames_read = sf_readf_short(streaming_file, enc_buf, FRAMES_TO_ENCODE);
+        if(frames_read == 0)
+            break;
+        frames_written = sf_writef_short(stream_out_file, enc_buf, frames_read);
+        if(frames_read != frames_written) {
+            printf("Short on frames!!\n");
+        }
+    }
+    sf_close(stream_out_file);
+    sf_close(streaming_file);
+    return NULL;
+}
 void * streaming_thread_init(void * userdata) {
     (void) userdata;
+
+    pthread_create(&encode_thread, NULL, encode_thread_init, NULL);
 
     int opt_on = 0;
 
     setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &opt_on, sizeof(int));
 
     /* Set up streaming to client. */
-    sf_count_t frames_read;
-    int bytes_per_frame = MAX_CHANNELS * sizeof(short);
-    int bytes_to_send, bytes_sent;
+    int bytes_read, bytes_sent, bytes_to_send;
     int i = 0;
 
     /* Send audio over network to client. */
     while(1) {
-        frames_read = sf_readf_short(streaming_file, buf, FRAMES_TO_SEND);
-        if(frames_read == 0)
+        bytes_to_send = BYTES_TO_SEND;
+        bytes_read = read(stream_pipe_fd[0], buf, bytes_to_send);
+        if(bytes_read == 0)
             break;
-        bytes_to_send = frames_read * bytes_per_frame;
         bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
         void * start = buf;
         while(bytes_sent != 0) {
@@ -101,11 +135,10 @@ void * streaming_thread_init(void * userdata) {
         }
         i++;
 
-        if(i%20 == 0) {
-            printf("Total frames sent to client: %u\n", total_bytes_sent / bytes_per_frame);
+        if(i%80 == 0) {
+            printf("Total bytes sent to client: %u\n", total_bytes_sent);
         }
     }
-    sf_close(streaming_file);
     return NULL;
 }
 
@@ -117,7 +150,6 @@ int main() {
     char * file_path = "samples/deadmau5.ogg";
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
-    SF_INFO playback_info, streaming_info;
 
     /* Open a sound file. */
     playback_file = sf_open(file_path, SFM_READ, &playback_info);

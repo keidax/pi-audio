@@ -2,6 +2,7 @@
 #define _PI_AUDIO_CLIENT_H
 #include <netdb.h>
 #include <portaudio.h>
+#include <sndfile.h>
 
 // Type definitions
 typedef struct ourData {
@@ -18,7 +19,8 @@ extern ourData our_data;
 
 // File descriptors for pipe containing audio data
 int audio_pipe_fd[2];
-
+SNDFILE * decoded_file;
+SF_INFO decoded_info;
 
 // Function declarations
 void start_framesync_thread();

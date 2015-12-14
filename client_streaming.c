@@ -65,4 +65,6 @@ void start_streaming_thread() {
         printf("Error code returned from pthread_create(): %d\n", pthread_err);
         exit(1);
     }
+
+    decoded_file = sf_open_fd(audio_pipe_fd[0], SFM_READ, &decoded_info, 0);
 }

@@ -2,8 +2,8 @@
 #define _PI_AUDIO_MASTER_H
 #include <netdb.h>
 
-#define FRAMES_TO_SEND 1024
-
+#define BYTES_TO_SEND    4096
+#define FRAMES_TO_ENCODE 1024
 
 typedef struct client {
     char * ip_addr;

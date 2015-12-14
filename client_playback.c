@@ -21,22 +21,16 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
     ourData * data = (ourData *) userData;
 
     int bytes_read, bytes_to_read;
+    int frames_read;
     static int i = 0;
     /* Read audio data from file. libsndfile can convert between formats
      * on-the-fly, so we should always use floats.
      */
-    bytes_to_read = framesPerBuffer * data->frame_length;
-    bytes_read = read(audio_pipe_fd[0], outputBuffer, bytes_to_read);
+    frames_read = sf_readf_short(decoded_file, outputBuffer, framesPerBuffer);
     //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
     /* If we've read all the frames, then we can finish. */
-    while(bytes_read != bytes_to_read) {
-        if(bytes_read == 0 && bytes_to_read != 0) {
-            return paComplete;
-        } else if(bytes_read < bytes_to_read) {
-            bytes_to_read -= bytes_read;
-            bytes_read = read(audio_pipe_fd[0], outputBuffer, bytes_to_read);
-            //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
-        }
+    if(frames_read < framesPerBuffer) {
+        return paComplete;
     }
 
     client_frames_played += framesPerBuffer;
