@@ -114,7 +114,7 @@ int main() {
     common_setup();
     master_setup();
 
-    char * file_path = "samples/deadmau5.wav";
+    char * file_path = "samples/deadmau5.ogg";
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
     SF_INFO playback_info, streaming_info;

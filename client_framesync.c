@@ -86,10 +86,10 @@ void * framesync_thread_init(void * userdata) {
 }
 
 void start_framesync_thread() {
-    int err;
-    err = pthread_create(&framesync_thread, NULL, framesync_thread_init, NULL);
-    if(err) {
-        printf("Error code returned from pthread_create(): %d\n", err);
+    int pthread_err;
+    pthread_err = pthread_create(&framesync_thread, NULL, framesync_thread_init, NULL);
+    if(pthread_err) {
+        printf("Error code returned from pthread_create(): %d\n", pthread_err);
         exit(1);
     }
 }
