@@ -18,16 +18,14 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
     (void) inputBuffer;
     (void) timeInfo;
     (void) statusFlags;
-    ourData * data = (ourData *) userData;
+    //ourData * data = (ourData *) userData;
+    (void) userData;
 
-    int bytes_read, bytes_to_read;
-    int frames_read;
+    sf_count_t frames_read;
     static int i = 0;
-    /* Read audio data from file. libsndfile can convert between formats
-     * on-the-fly, so we should always use floats.
-     */
+    /* Read audio data from file. */
     frames_read = sf_readf_short(decoded_file, outputBuffer, framesPerBuffer);
-    //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
+
     /* If we've read all the frames, then we can finish. */
     if(frames_read < framesPerBuffer) {
         return paComplete;
@@ -37,11 +35,8 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
     i++;
 
     if(i%50 == 0) {
-        //printf("MFP: %" PRIu32 "\n", master_frames_played);
-        //printf("CFR: %" PRIu32 "\n", client_bytes_recvd / our_data.frame_length);
-        //printf("CFP: %" PRIu32 "\n", client_frames_played);
-        printf("Client/Master: %i%%\t", client_frames_played * 100 / master_frames_played);
-        printf("Client buffer: %.3f secs\n", ((client_bytes_recvd / our_data.frame_length) - client_frames_played) / 44100.0);
+        printf("Client lag: %.3f secs\t", (master_frames_played - client_frames_played) / 44100.0);
+        printf("Client buffer: %.3f secs\n", ((client_bytes_recvd / BYTES_PER_FRAME) - client_frames_played) / 44100.0);
     }
 
     return paContinue;

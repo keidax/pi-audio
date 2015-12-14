@@ -10,6 +10,7 @@
 #define BACKLOG         5
 
 #define STREAM_FORMAT   SF_FORMAT_AU | SF_FORMAT_PCM_S8
+#define BYTES_PER_FRAME 2
 
 /* How many frames of audio the master has played. */
 extern uint32_t master_frames_played;
