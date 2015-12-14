@@ -1,5 +1,3 @@
-#define _GNU_SOURCE // Needed for fcntl(2) F_SETPIPE_SZ
-
 #include <portaudio.h>
 #include <sndfile.h>
 #include <stdio.h>
@@ -18,16 +16,13 @@
 #include "master.h"
 
 int num_out_channels, sample_rate;
-SNDFILE * playback_file, * streaming_file, * vorbis_out;
+SNDFILE * playback_file, * streaming_file;
 
-short encode_buf[FRAMES_TO_SEND * MAX_CHANNELS];
-short stream_buf[FRAMES_TO_SEND * MAX_CHANNELS];
+short buf[FRAMES_TO_SEND * MAX_CHANNELS];
 
-static pthread_t streaming_thread, encode_thread;
+static pthread_t streaming_thread;
 int sockfd;
-int stream_pipe_fd[2];
 uint32_t total_bytes_sent;
-SF_INFO playback_info, streaming_info;
 
 /* This routine will be called by the PortAudio engine when audio is needed.
  * It may be called at interrupt level on some machines so don't do anything
@@ -68,57 +63,27 @@ void master_setup() {
     clients[0].ip_addr = "192.168.1.148";
 }
 
-/* Encode input file as an Ogg Vorbis stream, and write it to a pipe. */
-void * encode_thread_init(void * userdata) {
-    (void) userdata;
-    SF_INFO vorbis_info = {
-        .samplerate = streaming_info.samplerate,
-        .channels = streaming_info.channels,
-        .format = SF_FORMAT_OGG | SF_FORMAT_VORBIS
-    };
-
-
-    sf_count_t frames_read, frames_to_write, frames_written;
-
-    vorbis_out = sf_open_fd(stream_pipe_fd[1], SFM_WRITE, &vorbis_info, 0);
-
-    while(1) {
-        frames_read = sf_readf_short(streaming_file, encode_buf, FRAMES_TO_SEND);
-        if(frames_read == 0)
-            break;
-        frames_to_write = frames_read;
-        frames_written = sf_writef_short(vorbis_out, encode_buf, frames_to_write);
-        if(frames_written == 0) {
-            printf("libsndfile error: %s\n", sf_strerror(vorbis_out));
-        }
-    }
-    return NULL;
-}
-
 void * streaming_thread_init(void * userdata) {
     (void) userdata;
 
     int opt_on = 0;
+
     setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &opt_on, sizeof(int));
 
-    // Create a pipe for vorbis data
-    pipe(stream_pipe_fd);
-    fcntl(stream_pipe_fd[0], F_SETPIPE_SZ, 1048576);
-
-    pthread_create(&encode_thread, NULL, encode_thread_init, NULL);
-
     /* Set up streaming to client. */
-    int bytes_to_send, bytes_sent, bytes_read;
+    sf_count_t frames_read;
+    int bytes_per_frame = MAX_CHANNELS * sizeof(short);
+    int bytes_to_send, bytes_sent;
     int i = 0;
 
     /* Send audio over network to client. */
     while(1) {
-        bytes_read = read(stream_pipe_fd[0], stream_buf, BYTES_TO_SEND);
-        if(bytes_read == 0)
+        frames_read = sf_readf_short(streaming_file, buf, FRAMES_TO_SEND);
+        if(frames_read == 0)
             break;
-        bytes_to_send = bytes_read;
-        bytes_sent = send(sockfd, (void *) stream_buf, bytes_to_send, 0);
-        void * start = stream_buf;
+        bytes_to_send = frames_read * bytes_per_frame;
+        bytes_sent = send(sockfd, (void *) buf, bytes_to_send, 0);
+        void * start = buf;
         while(bytes_sent != 0) {
             if(bytes_sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 //printf("%%");
@@ -137,7 +102,7 @@ void * streaming_thread_init(void * userdata) {
         i++;
 
         if(i%20 == 0) {
-            printf("Total bytes sent to client: %u\n", total_bytes_sent);
+            printf("Total frames sent to client: %u\n", total_bytes_sent / bytes_per_frame);
         }
     }
     sf_close(streaming_file);
@@ -149,9 +114,10 @@ int main() {
     common_setup();
     master_setup();
 
-    char * file_path = "samples/deadmau5.ogg";
+    char * file_path = "samples/deadmau5.wav";
     const PaVersionInfo * version_info = Pa_GetVersionInfo();
     printf("Using %s\n", version_info->versionText);
+    SF_INFO playback_info, streaming_info;
 
     /* Open a sound file. */
     playback_file = sf_open(file_path, SFM_READ, &playback_info);

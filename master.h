@@ -3,7 +3,7 @@
 #include <netdb.h>
 
 #define FRAMES_TO_SEND 1024
-#define BYTES_TO_SEND 4096
+
 
 typedef struct client {
     char * ip_addr;

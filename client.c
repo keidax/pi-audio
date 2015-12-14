@@ -1,7 +1,6 @@
 #define _GNU_SOURCE // Needed for fcntl(2) F_SETPIPE_SZ
 
 #include <portaudio.h>
-#include <sndfile.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -24,16 +23,10 @@ typedef struct ourData {
     long frame_length;
 } ourData;
 
-short decode_buf[FRAMES_TO_DECODE * MAX_CHANNELS];
-
-SNDFILE * vorbis_in;
-SF_INFO vorbis_info;
-
 static ourData our_data;
 
-static int stream_pipe_fd[2];
-static int decode_pipe_fd[2];
-static pthread_t buffer_thread, decode_thread;
+static int pipe_fd[2];
+static pthread_t buffer_thread;
 
 uint32_t client_bytes_recvd = 0;
 uint32_t client_frames_played = 0;
@@ -59,7 +52,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
      * on-the-fly, so we should always use floats.
      */
     bytes_to_read = framesPerBuffer * data->frame_length;
-    bytes_read = read(decode_pipe_fd[0], outputBuffer, bytes_to_read);
+    bytes_read = read(pipe_fd[0], outputBuffer, bytes_to_read);
     //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
     /* If we've read all the frames, then we can finish. */
     while(bytes_read != bytes_to_read) {
@@ -67,7 +60,7 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
             return paComplete;
         } else if(bytes_read < bytes_to_read) {
             bytes_to_read -= bytes_read;
-            bytes_read = read(decode_pipe_fd[0], outputBuffer, bytes_to_read);
+            bytes_read = read(pipe_fd[0], outputBuffer, bytes_to_read);
             //printf("Received %i/%i bytes from pipe\n", bytes_read, bytes_to_read);
         }
     }
@@ -85,45 +78,8 @@ static int paTestCallback(const void * inputBuffer, void * outputBuffer,
     return paContinue;
 }
 
-void * decode_thread_init(void * userdata) {
-    (void) userdata;
-    Pa_Sleep(2000);
-
-    vorbis_in = sf_open_fd(stream_pipe_fd[0], SFM_READ, &vorbis_info, 0);
-    if(vorbis_in == NULL) {
-        printf("libsndfile error: %s\n", sf_strerror(vorbis_in));
-        char buffer[2048] ;
-        sf_command (vorbis_in, SFC_GET_LOG_INFO, buffer, sizeof (buffer));
-        printf("libsndfile log: %s\n", buffer);
-        exit(1);
-    }
-
-
-    sf_count_t frames_read;
-    ssize_t bytes_to_write, bytes_written;
-
-    while(1) {
-        frames_read = sf_readf_short(vorbis_in, decode_buf, FRAMES_TO_DECODE);
-        if(frames_read == 0)
-            break;
-
-        // Write to pipe
-        bytes_to_write = frames_read * MAX_CHANNELS * sizeof(short);
-        bytes_written = write(decode_pipe_fd[1], decode_buf, bytes_to_write);
-        while(bytes_written != bytes_to_write) {
-            bytes_to_write -= bytes_written;
-            bytes_written = write(decode_pipe_fd[1], decode_buf, bytes_to_write);
-        }
-    }
-
-
-    return NULL;
-}
-
 void * buffer_thread_init(void * userdata) {
     (void) userdata;
-    pthread_create(&decode_thread, NULL, decode_thread_init, NULL);
-
     int buf_len = 1024 * our_data.frame_length;
     char buf[buf_len];
 
@@ -158,10 +114,10 @@ void * buffer_thread_init(void * userdata) {
 
         // Write to pipe
         bytes_to_write = bytes_read_total;
-        bytes_written = write(stream_pipe_fd[1], buf, bytes_to_write);
+        bytes_written = write(pipe_fd[1], buf, bytes_to_write);
         while(bytes_written != bytes_to_write) {
             bytes_to_write -= bytes_written;
-            bytes_written = write(stream_pipe_fd[1], buf, bytes_to_write);
+            bytes_written = write(pipe_fd[1], buf, bytes_to_write);
         }
     }
 
@@ -214,11 +170,8 @@ int main() {
     printf("Frame length is %li bytes\n", our_data.frame_length);
 
     // Create a pipe to hold audio data
-    pipe(stream_pipe_fd);
-    fcntl(stream_pipe_fd[0], F_SETPIPE_SZ, 1048576);
-
-    pipe(decode_pipe_fd);
-    fcntl(decode_pipe_fd[0], F_SETPIPE_SZ, 1048576);
+    pipe(pipe_fd);
+    fcntl(pipe_fd[0], F_SETPIPE_SZ, 1048576);
 
     int pthread_err;
     pthread_err = pthread_create(&buffer_thread, NULL, buffer_thread_init, NULL);
