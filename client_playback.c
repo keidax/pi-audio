@@ -6,8 +6,7 @@
 #include "client.h"
 
 // Allowable latency, in frames
-static int client_latency = 100;
-static int master_frame_correction = 4000;
+static int master_frame_correction = 3000;
 static const int skip_frames = 512;
 static short skip_buf[512 * MAX_CHANNELS];
 
@@ -31,9 +30,9 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
     static int i = 0;
 
     // Skip ahead if we're lagging too far behind the master
-    if(client_frames_played + framesPerBuffer + client_latency < master_frames_played + master_frame_correction) {
+    if(client_frames_played + framesPerBuffer < master_frames_played + master_frame_correction) {
         int frames_to_skip = (master_frames_played + master_frame_correction) -
-            (client_frames_played + framesPerBuffer + client_latency);
+            (client_frames_played + framesPerBuffer);
         int frames_skipped;
         client_frames_played += frames_to_skip;
         printf("Skipping %i frames\n", frames_to_skip);
@@ -55,9 +54,10 @@ int pa_client_callback(const void * inputBuffer, void * outputBuffer,
     client_frames_played += framesPerBuffer;
     i++;
 
-    if(i%50 == 0) {
-        printf("Client lag: %.3f secs\t", (master_frames_played - client_frames_played) / 44100.0);
-        printf("Client buffer: %.3f secs\n", ((client_bytes_recvd / BYTES_PER_FRAME) - client_frames_played) / 44100.0);
+    if(i%10 == 0) {
+        printf("MFP: %u\n", master_frames_played);
+        //printf("Client lag: %.3f secs\t", (master_frames_played - client_frames_played) / 44100.0);
+        //printf("Client buffer: %.3f secs\n", ((client_bytes_recvd / BYTES_PER_FRAME) - client_frames_played) / 44100.0);
     }
 
     return paContinue;
